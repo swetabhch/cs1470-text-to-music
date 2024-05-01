@@ -146,7 +146,7 @@ def load_data(data_folder):
     print("Getting training embeddings")
     train_audio_features = get_audio_features(train_audio_names, data_folder)
     print("Getting testing embeddings")
-    test_audio_features = get_audio_features(test_audio_names[:30], data_folder)
+    test_audio_features = get_audio_features(test_audio_names, data_folder)
     #print(test_audio_features[0].shape)
 
 
