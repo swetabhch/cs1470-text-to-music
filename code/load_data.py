@@ -35,7 +35,6 @@ def download_clip(
     return status, 'Downloaded'
 
 def process(example):
-    print(example)
     outfile_path = str(data_dir / f"{example['ytid']}.wav")
     status = True
     if not os.path.exists(outfile_path):
@@ -60,6 +59,7 @@ data_dir = Path(data_dir)
 data_dir.mkdir(exist_ok=True, parents=True)
 
 init_df = pd.read_csv('../data/musiccaps-public.csv')
-loaded_df = init_df.apply(process)
+print(init_df.columns)
+loaded_df = init_df.apply(process, axis=1)
 loaded_df.to_csv()
 
