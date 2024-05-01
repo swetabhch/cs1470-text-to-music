@@ -8,6 +8,7 @@ import numpy as np
 import collections
 from tqdm import tqdm
 import pandas as pd
+import librosa
 
 def preprocess_captions(captions, window_size):
     for i, caption in enumerate(captions):
@@ -36,17 +37,30 @@ def get_audio_features(audio_names, data_folder):
     #gap = tf.keras.layers.GlobalAveragePooling2D()  ## Produces Bx2048
     pbar = tqdm(audio_names)
     for i, audio_name in enumerate(pbar):
-        aud_path = f'{data_folder}/music/{audio_name}'
-        pbar.set_description(f"[({i+1}/{len(audio_names)})] Processing '{aud_path}' into 2048-D ResNet GAP Vector")
-        audio_data = tfio.audio.AudioIOTensor(aud_path)
-        audio_t = tf.squeeze(audio_data, axis=[-1])
-        normalized_audio = audio_t / tf.math.reduce_max(tf.math.abs(audio_t))
-        tensor = tf.cast(audio_t, tf.float32) / 32767.0
-        tensor = tensor.to_tensor()
+        aud_path = f'{audio_name}'
+        pbar.set_description(f"[({i+1}/{len(audio_names)})] Processing '{aud_path}'")
+        #audio_data = tfio.audio.AudioIOTensor(aud_path)
+        #audio_t = tf.squeeze(audio_data, axis=[-1])
+        #normalized_audio = audio_t / tf.math.reduce_max(tf.math.abs(audio_t))
+        #tensor = tf.cast(audio_t, tf.float32) / 32767.0
+        #tensor = tensor.to_tensor()
         #img_in = tf.keras.applications.resnet50.preprocess_input(img_array)[np.newaxis, :]
-        audio_features += [tensor]
-        #if i < vis_subset:
-        #    vis_images += [img_array]
+        y, sr = librosa.load(aud_path, sr=None)
+        mfccs = librosa.feature.mfcc(y=y, sr=sr)
+        #print(f'MFCC: {mfccs.shape}')
+        chroma = librosa.feature.chroma_stft(y=y, sr=sr)
+        #print(f'chroma: {chroma.shape}')
+        tempo, beats = librosa.beat.beat_track(y=y, sr=sr)
+        #print(f'tempo: {tempo.shape}, beats" {beats.shape}')
+        combined_features = np.concatenate((mfccs, chroma), axis=0)
+
+        mean = np.mean(combined_features, axis=0)
+        std = np.std(combined_features, axis=0)
+    
+        normalized_features = (combined_features - mean) / (std + 1e-8) 
+        padded = tf.keras.preprocessing.sequence.pad_sequences(normalized_features, maxlen = 1873, dtype='float32', padding='post', truncating='post')
+        audio_features += [padded]
+        #print(padded.shape)
     print()
     return audio_features
 
@@ -62,10 +76,11 @@ def load_data(data_folder):
     on how the images and captions were pre-processed 
     '''
     
-    df = pd.read_csv('../data/musiccaps-files.csv')[['caption','audio']]
+    df = pd.read_csv('../data/musiccaps-files.csv')
+    df = df[df['download_status'] == True][['caption','audio']]
 
     audio_to_caption_dict = {}
-    for index, row in df.iterrows:
+    for index, row in df.iterrows():
         audio_to_caption_dict[row['audio']] = row['audio']
 
     shuffled_audio = list(audio_to_caption_dict.keys())
@@ -128,17 +143,18 @@ def load_data(data_folder):
         for index, word in enumerate(caption):
             caption[index] = word2idx[word] 
     
-    # use ResNet50 to extract image features
     print("Getting training embeddings")
     train_audio_features = get_audio_features(train_audio_names, data_folder)
     print("Getting testing embeddings")
-    test_audio_features = get_audio_features(test_audio_names, data_folder)
+    test_audio_features = get_audio_features(test_audio_names[:30], data_folder)
+    #print(test_audio_features[0].shape)
+
 
     return dict(
         train_captions          = np.array(train_captions),
         test_captions           = np.array(test_captions),
-        train_image_features    = np.array(train_audio_features),
-        test_image_features     = np.array(test_audio_features),
+        train_audio_features    = np.array(train_audio_features),
+        test_audio_features     = np.array(test_audio_features),
         word2idx                = word2idx,
         idx2word                = {v:k for k,v in word2idx.items()},
     )
