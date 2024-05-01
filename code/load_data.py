@@ -3,6 +3,13 @@ import os
 import pandas as pd
 from pathlib import Path
 
+data_dir = "../data/music" # Where to save the data
+
+# Create directory where data will be saved
+data_dir = Path(data_dir)
+data_dir.mkdir(exist_ok=True, parents=True)
+
+
 
 def download_clip(
     video_identifier,
@@ -13,11 +20,10 @@ def download_clip(
     url_base='https://www.youtube.com/watch?v='
 ):
     status = False
-
     command = f"""
-        yt-dlp --quiet --no-warnings -x --audio-format wav -f bestaudio -o "{output_filename}" --download-sections "*{start_time}-{end_time}" {url_base}{video_identifier}
+        yt-dlp --quiet --no-warnings -x --audio-format wav -f bestaudio -o "{output_filename}" --download-sections "*{start_time}-{end_time}" "{url_base}{video_identifier}"
     """.strip()
-
+    print(command)
     attempts = 0
     while True:
         try:
@@ -32,6 +38,7 @@ def download_clip(
 
     # Check if the video was successfully saved.
     status = os.path.exists(output_filename)
+    print(status)
     return status, 'Downloaded'
 
 def process(example):
@@ -50,16 +57,10 @@ def process(example):
     example['download_status'] = status
     return example
 
-
-
-data_dir = "../data" # Where to save the data
-
-# Create directory where data will be saved
-data_dir = Path(data_dir)
-data_dir.mkdir(exist_ok=True, parents=True)
-
 init_df = pd.read_csv('../data/musiccaps-public.csv')
 print(init_df.columns)
 loaded_df = init_df.apply(process, axis=1)
-loaded_df.to_csv()
+loaded_df.to_csv("../data/musiccaps-files.csv")
+
+
 
