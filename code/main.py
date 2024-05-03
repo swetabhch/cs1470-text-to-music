@@ -26,12 +26,6 @@ def parse_args(args=None):
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument(
-        "--type",
-        required=True,
-        choices=["rnn", "transformer"],
-        help="Type of model to train",
-    )
-    parser.add_argument(
         "--task", required=True, choices=["train", "test", "both"], help="Task to run"
     )
     parser.add_argument(
