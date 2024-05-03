@@ -79,107 +79,87 @@ def main(args):
 
     ##############################################################################
     ## Data Loading
-    # with open(args.data, "rb") as data_file:
-    #     data_dict = pickle.load(data_file)
+    with open(args.data, "rb") as data_file:
+        data_dict = pickle.load(data_file)
+
+    train_captions = data_dict["train_captions"]
+    test_captions = data_dict["test_captions"]
+    # TODO: figure out what kind of feat prep we need to do if any
+    #    if we're talking about number of captions, we need to do none.
+    train_audio_feats = data_dict["train_audio_features"]
+    test_audio_feats = data_dict["test_audio_features"]
+    word2idx = data_dict["word2idx"]
 
     # feat_prep = lambda x: np.repeat(np.array(x).reshape(-1, 2048), 5, axis=0)
     # # img_prep  = lambda x: np.repeat(x, 5, axis=0)
-    # train_captions = np.array(data_dict["train_captions"])
-    # test_captions = np.array(data_dict["test_captions"])
-    # train_img_feats = feat_prep(data_dict["train_image_features"])
-    # test_img_feats = feat_prep(data_dict["test_image_features"])
     # # train_images    = img_prep(data_dict['train_images'])
     # # test_images     = img_prep(data_dict['test_images'])
-    # word2idx = data_dict["word2idx"]
     # # idx2word        = data_dict['idx2word']
 
-    # ##############################################################################
-    # ## Training Task
-    # if args.task in ("train", "both"):
-    #     ##############################################################################
-    #     ## Model Construction
-    #     decoder_class = {"rnn": RNNDecoder, "transformer": TransformerDecoder}[
-    #         args.type
-    #     ]
+    ## Training task
+    if args.task in ("train", "both"):
+        decoder = TransformerDecoder(len(word2idx), args.hidden_size, args.window_size)
+        model = AudioCaptionModel(decoder)
+        compile_model(model, args)
+        train_model(
+            model,
+            train_captions,
+            train_audio_feats,
+            word2idx["<pad>"],
+            args,
+            valid=(test_captions, test_audio_feats),
+        )
+        if args.chkpt_path:
+            ## Save model to run testing task afterwards
+            save_model(model, args)
 
-    #     decoder = decoder_class(
-    #         vocab_size=len(word2idx),
-    #         hidden_size=args.hidden_size,
-    #         window_size=args.window_size,
-    #     )
-
-    #     model = ImageCaptionModel(decoder)
-    #     compile_model(model, args)
-    #     train_model(
-    #         model,
-    #         train_captions,
-    #         train_img_feats,
-    #         word2idx["<pad>"],
-    #         args,
-    #         valid=(test_captions, test_img_feats),
-    #     )
-    #     if args.chkpt_path:
-    #         ## Save model to run testing task afterwards
-    #         save_model(model, args)
-
-    # ##############################################################################
-    # ## Testing Task
-    # if args.task in ("test", "both"):
-    #     if args.task != "both":
-    #         ## Load model for testing. Note that architecture needs to be consistent
-    #         model = load_model(args)
-    #     if not (args.task == "both" and args.check_valid):
-    #         test_model(model, test_captions, test_img_feats, word2idx["<pad>"], args)
-
-    ##############################################################################
-    pass
+    ## Testing task
+    if args.task in ("test", "both"):
+        if args.task != "both":
+            model = load_model(args)
+        if not (args.task == "both" and args.check_valid):
+            test_model(model, test_captions, test_audio_feats, word2idx["<pad>"], args)
 
 
 ##############################################################################
 ## UTILITY METHODS
 
 
-# def save_model(model, args):
-#     """Loads model based on arguments"""
-#     os.makedirs(f"{args.chkpt_path}", exist_ok=True)
+def save_model(model, args):
+    """Loads model based on arguments"""
+    os.makedirs(f"{args.chkpt_path}", exist_ok=True)
 
-#     tf.keras.models.save_model(model, args.chkpt_path)
-#     print(f"Model saved to {args.chkpt_path}")
-
-
-# def load_model(args):
-#     """Loads model by reference based on arguments. Also returns said model"""
-#     model = tf.keras.models.load_model(
-#         args.chkpt_path,
-#         custom_objects=dict(
-#             AttentionHead=decoder.AttentionHead,
-#             AttentionMatrix=decoder.AttentionMatrix,
-#             MultiHeadedAttention=decoder.MultiHeadedAttention,
-#             TransformerBlock=decoder.TransformerBlock,
-#             PositionalEncoding=decoder.PositionalEncoding,
-#             TransformerDecoder=TransformerDecoder,
-#             RNNDecoder=RNNDecoder,
-#             ImageCaptionModel=ImageCaptionModel,
-#         ),
-#     )
-
-#     ## Saving is very nuanced. Might need to set the custom components correctly.
-#     ## Functools.partial is a function wrapper that auto-fills a selection of arguments.
-#     ## so in other words, the first argument of ImageCaptionModel.test is model (for self)
-#     from functools import partial
-
-#     model.test = partial(ImageCaptionModel.test, model)
-#     model.train = partial(ImageCaptionModel.train, model)
-#     model.compile = partial(ImageCaptionModel.compile, model)
-#     compile_model(model, args)
-#     print(f"Model loaded from '{args.chkpt_path}'")
-#     return model
+    tf.keras.models.save_model(model, args.chkpt_path)
+    print(f"Model saved to {args.chkpt_path}")
 
 
-# def compile_model(model, args):
-#     """Compiles model by reference based on arguments"""
-#     optimizer = tf.keras.optimizers.get(args.optimizer).__class__(learning_rate=args.lr)
-#     model.compile(optimizer=optimizer, loss=loss_function, metrics=[accuracy_function])
+def load_model(args):
+    """Loads model by reference based on arguments. Also returns said model"""
+    model = tf.keras.models.load_model(
+        args.chkpt_path,
+        custom_objects=dict(
+            TransformerDecoder=TransformerDecoder,
+            AudioCaptionModel=AudioCaptionModel,
+        ),
+    )
+
+    ## Saving is very nuanced. Might need to set the custom components correctly.
+    ## Functools.partial is a function wrapper that auto-fills a selection of arguments.
+    ## so in other words, the first argument of AudioCaptionModel.test is model (for self)
+    from functools import partial
+
+    model.test = partial(AudioCaptionModel.test, model)
+    model.train = partial(AudioCaptionModel.train, model)
+    model.compile = partial(AudioCaptionModel.compile, model)
+    compile_model(model, args)
+    print(f"Model loaded from '{args.chkpt_path}'")
+    return model
+
+
+def compile_model(model, args):
+    """Compiles model by reference based on arguments"""
+    optimizer = tf.keras.optimizers.get(args.optimizer).__class__(learning_rate=args.lr)
+    model.compile(optimizer=optimizer, loss=loss_function, metrics=[accuracy_function])
 
 
 def train_model(model, captions, audio_feats, pad_idx, args, valid):
