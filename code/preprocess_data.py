@@ -58,7 +58,7 @@ def get_audio_features(audio_names, data_folder):
         std = np.std(combined_features, axis=0)
     
         normalized_features = (combined_features - mean) / (std + 1e-8) 
-        padded = tf.keras.preprocessing.sequence.pad_sequences(normalized_features, maxlen = 1873, dtype='float32', padding='post', truncating='post')
+        padded = tf.keras.preprocessing.sequence.pad_sequences(normalized_features, maxlen = 1873, dtype='float32', padding='post', truncating='post')[np.newaxis, :]
         audio_features += [padded]
         #print(padded.shape)
     print()
@@ -102,7 +102,7 @@ def load_data(data_folder):
     test_captions = get_all_captions(test_audio_names)
 
     #remove special charachters and other nessesary preprocessing
-    window_size = 40
+    window_size = 20
     preprocess_captions(train_captions, window_size)
     preprocess_captions(test_captions, window_size)
 

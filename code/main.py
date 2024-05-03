@@ -5,7 +5,8 @@ import pickle
 import tensorflow as tf
 from typing import Optional
 from types import SimpleNamespace
-
+import transformer
+from positional_encoding import PositionalEncoding
 
 from model import AudioCaptionModel, accuracy_function, loss_function
 from decoder import TransformerDecoder
@@ -21,57 +22,57 @@ def parse_args(args=None):
     For example:
         parse_args('--type', 'rnn', ...)
     """
-    # parser = argparse.ArgumentParser(
-    #     description="Let's train some neural nets!",
-    #     formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-    # )
-    # parser.add_argument(
-    #     "--type",
-    #     required=True,
-    #     choices=["rnn", "transformer"],
-    #     help="Type of model to train",
-    # )
-    # parser.add_argument(
-    #     "--task", required=True, choices=["train", "test", "both"], help="Task to run"
-    # )
-    # parser.add_argument(
-    #     "--data", required=True, help="File path to the assignment data file."
-    # )
-    # parser.add_argument(
-    #     "--epochs", type=int, default=3, help="Number of epochs used in training."
-    # )
-    # parser.add_argument("--lr", type=float, default=1e-3, help="Model's learning rate")
-    # parser.add_argument(
-    #     "--optimizer",
-    #     type=str,
-    #     default="adam",
-    #     choices=["adam", "rmsprop", "sgd"],
-    #     help="Model's optimizer",
-    # )
-    # parser.add_argument(
-    #     "--batch_size", type=int, default=100, help="Model's batch size."
-    # )
-    # parser.add_argument(
-    #     "--hidden_size",
-    #     type=int,
-    #     default=256,
-    #     help="Hidden size used to instantiate the model.",
-    # )
-    # parser.add_argument(
-    #     "--window_size", type=int, default=20, help="Window size of text entries."
-    # )
-    # parser.add_argument(
-    #     "--chkpt_path", default="", help="where the model checkpoint is"
-    # )
-    # parser.add_argument(
-    #     "--check_valid",
-    #     default=True,
-    #     action="store_true",
-    #     help="if training, also print validation after each epoch",
-    # )
-    # if args is None:
-    #     return parser.parse_args()  ## For calling through command line
-    # return parser.parse_args(args)  ## For calling through notebook.
+    parser = argparse.ArgumentParser(
+         description="Let's train some neural nets!",
+         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    #parser.add_argument(
+    #    "--type",
+    #    required=True,
+    #    choices=["rnn", "transformer"],
+     #   help="Type of model to train",
+    #)
+    parser.add_argument(
+        "--task", required=True, choices=["train", "test", "both"], help="Task to run"
+    )
+    parser.add_argument(
+        "--data", required=True, help="File path to the assignment data file."
+    )
+    parser.add_argument(
+        "--epochs", type=int, default=3, help="Number of epochs used in training."
+    )
+    parser.add_argument("--lr", type=float, default=1e-3, help="Model's learning rate")
+    parser.add_argument(
+        "--optimizer",
+        type=str,
+        default="adam",
+        choices=["adam", "rmsprop", "sgd"],
+        help="Model's optimizer",
+    )
+    parser.add_argument(
+        "--batch_size", type=int, default=100, help="Model's batch size."
+    )
+    parser.add_argument(
+        "--hidden_size",
+        type=int,
+        default=256,
+        help="Hidden size used to instantiate the model.",
+    )
+    parser.add_argument(
+        "--window_size", type=int, default=20, help="Window size of text entries."
+    )
+    parser.add_argument(
+        "--chkpt_path", default="", help="where the model checkpoint is"
+    )
+    parser.add_argument(
+        "--check_valid",
+        default=True,
+        action="store_true",
+        help="if training, also print validation after each epoch",
+    )
+    if args is None:
+        return parser.parse_args()  ## For calling through command line
+    return parser.parse_args(args)  ## For calling through notebook.
     pass
 
 
@@ -98,7 +99,12 @@ def main(args):
 
     ## Training task
     if args.task in ("train", "both"):
-        decoder = TransformerDecoder(len(word2idx), args.hidden_size, args.window_size)
+        decoder_class = TransformerDecoder
+        decoder = decoder_class(
+            vocab_size  = len(word2idx), 
+            hidden_size = args.hidden_size, 
+            window_size = args.window_size
+        )
         model = AudioCaptionModel(decoder)
         compile_model(model, args)
         train_model(
@@ -138,18 +144,22 @@ def load_model(args):
     model = tf.keras.models.load_model(
         args.chkpt_path,
         custom_objects=dict(
-            TransformerDecoder=TransformerDecoder,
-            AudioCaptionModel=AudioCaptionModel,
+            AttentionHead           = transformer.AttentionHead,
+            AttentionMatrix         = transformer.AttentionMatrix,
+            MultiHeadedAttention    = transformer.MultiHeadedAttention,
+            TransformerBlock        = transformer.TransformerBlock,
+            PositionalEncoding      = PositionalEncoding,
+            TransformerDecoder      = TransformerDecoder,
+            AudioCaptionModel       = AudioCaptionModel
         ),
     )
-
+    
     ## Saving is very nuanced. Might need to set the custom components correctly.
-    ## Functools.partial is a function wrapper that auto-fills a selection of arguments.
-    ## so in other words, the first argument of AudioCaptionModel.test is model (for self)
+    ## Functools.partial is a function wrapper that auto-fills a selection of arguments. 
+    ## so in other words, the first argument of ImageCaptionModel.test is model (for self)
     from functools import partial
-
-    model.test = partial(AudioCaptionModel.test, model)
-    model.train = partial(AudioCaptionModel.train, model)
+    model.test    = partial(AudioCaptionModel.test,    model)
+    model.train   = partial(AudioCaptionModel.train,   model)
     model.compile = partial(AudioCaptionModel.compile, model)
     compile_model(model, args)
     print(f"Model loaded from '{args.chkpt_path}'")
@@ -171,6 +181,7 @@ def train_model(model, captions, audio_feats, pad_idx, args, valid):
                 model.train(captions, audio_feats, pad_idx, batch_size=args.batch_size)
             ]
             if args.check_valid:
+                print('\n')
                 model.test(valid[0], valid[1], pad_idx, batch_size=args.batch_size)
     except KeyboardInterrupt as e:
         if epoch > 0:
