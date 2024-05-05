@@ -23,15 +23,15 @@ def parse_args(args=None):
         parse_args('--type', 'rnn', ...)
     """
     parser = argparse.ArgumentParser(
-         description="Let's train some neural nets!",
-         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+        description="Let's train some neural nets!",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    #parser.add_argument(
+    # parser.add_argument(
     #    "--type",
     #    required=True,
     #    choices=["rnn", "transformer"],
-     #   help="Type of model to train",
-    #)
+    #   help="Type of model to train",
+    # )
     parser.add_argument(
         "--task", required=True, choices=["train", "test", "both"], help="Task to run"
     )
@@ -101,9 +101,9 @@ def main(args):
     if args.task in ("train", "both"):
         decoder_class = TransformerDecoder
         decoder = decoder_class(
-            vocab_size  = len(word2idx), 
-            hidden_size = args.hidden_size, 
-            window_size = args.window_size
+            vocab_size=len(word2idx),
+            hidden_size=args.hidden_size,
+            window_size=args.window_size,
         )
         model = AudioCaptionModel(decoder)
         compile_model(model, args)
@@ -115,20 +115,67 @@ def main(args):
             args,
             valid=(test_captions, test_audio_feats),
         )
-        if args.chkpt_path:
-            ## Save model to run testing task afterwards
-            save_model(model, args)
+        # if args.chkpt_path:
+        #     ## Save model to run testing task afterwards
+        #     save_model(model, args)
 
     ## Testing task
     if args.task in ("test", "both"):
         if args.task != "both":
             model = load_model(args)
         if not (args.task == "both" and args.check_valid):
-            test_model(model, test_captions, test_audio_feats, word2idx["<pad>"], args)
+            perplexity, accuracy = test_model(
+                model, test_captions, test_audio_feats, word2idx["<pad>"], args
+            )
+            print(f"TEST PERPLEXITY: {perplexity}")
+            print(f"TEST ACCURACY: {accuracy}")
+
+    ## Check a single input
+    input_idx = 3
+    test_audio_feat = test_audio_feats[input_idx]
+    temperature = 0.2
+    generated_caption = gen_caption_temperature(
+        model,
+        test_audio_feat,
+        word2idx,
+        word2idx["<pad>"],
+        temperature,
+        args.window_size,
+    )
+    print(f"GENERATED CAPTION: {generated_caption}")
 
 
 ##############################################################################
 ## UTILITY METHODS
+
+
+def gen_caption_temperature(
+    model, audio_embedding, wordToIds, padID, temp, window_length
+):
+    """
+    Function used to generate a caption using an ImageCaptionModel given
+    an image embedding.
+    """
+    idsToWords = {id: word for word, id in wordToIds.items()}
+    print(idsToWords)
+    unk_token = wordToIds["<unk>"]
+    caption_so_far = [wordToIds["<start>"]]
+    while (
+        len(caption_so_far) < window_length and caption_so_far[-1] != wordToIds["<end>"]
+    ):
+        caption_input = np.array(
+            [caption_so_far + ((window_length - len(caption_so_far)) * [padID])]
+        )
+        logits = model(np.expand_dims(audio_embedding, 0), caption_input)
+        logits = logits[0][len(caption_so_far) - 1]
+        probs = tf.nn.softmax(logits / temp).numpy()
+        next_token = unk_token
+        attempts = 0
+        while next_token == unk_token and attempts < 5:
+            next_token = np.random.choice(len(probs), p=probs)
+            attempts += 1
+        caption_so_far.append(next_token)
+    return " ".join([idsToWords[x] for x in caption_so_far][1:-1])
 
 
 def save_model(model, args):
@@ -144,22 +191,23 @@ def load_model(args):
     model = tf.keras.models.load_model(
         args.chkpt_path,
         custom_objects=dict(
-            AttentionHead           = transformer.AttentionHead,
-            AttentionMatrix         = transformer.AttentionMatrix,
-            MultiHeadedAttention    = transformer.MultiHeadedAttention,
-            TransformerBlock        = transformer.TransformerBlock,
-            PositionalEncoding      = PositionalEncoding,
-            TransformerDecoder      = TransformerDecoder,
-            AudioCaptionModel       = AudioCaptionModel
+            AttentionHead=transformer.AttentionHead,
+            AttentionMatrix=transformer.AttentionMatrix,
+            MultiHeadedAttention=transformer.MultiHeadedAttention,
+            TransformerBlock=transformer.TransformerBlock,
+            PositionalEncoding=PositionalEncoding,
+            TransformerDecoder=TransformerDecoder,
+            AudioCaptionModel=AudioCaptionModel,
         ),
     )
-    
+
     ## Saving is very nuanced. Might need to set the custom components correctly.
-    ## Functools.partial is a function wrapper that auto-fills a selection of arguments. 
+    ## Functools.partial is a function wrapper that auto-fills a selection of arguments.
     ## so in other words, the first argument of ImageCaptionModel.test is model (for self)
     from functools import partial
-    model.test    = partial(AudioCaptionModel.test,    model)
-    model.train   = partial(AudioCaptionModel.train,   model)
+
+    model.test = partial(AudioCaptionModel.test, model)
+    model.train = partial(AudioCaptionModel.train, model)
     model.compile = partial(AudioCaptionModel.compile, model)
     compile_model(model, args)
     print(f"Model loaded from '{args.chkpt_path}'")
@@ -181,7 +229,7 @@ def train_model(model, captions, audio_feats, pad_idx, args, valid):
                 model.train(captions, audio_feats, pad_idx, batch_size=args.batch_size)
             ]
             if args.check_valid:
-                print('\n')
+                print("\n")
                 model.test(valid[0], valid[1], pad_idx, batch_size=args.batch_size)
     except KeyboardInterrupt as e:
         if epoch > 0:
