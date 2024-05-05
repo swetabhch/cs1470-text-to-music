@@ -6,6 +6,7 @@ import tensorflow as tf
 from typing import Optional
 from types import SimpleNamespace
 import random
+from preprocess_data import get_audio_features
 
 
 from model import AudioCaptionModel, accuracy_function, loss_function
@@ -140,6 +141,21 @@ def main(args):
         temperature,
         args.window_size,
     )
+    print(f"NAME OF FILE: {random_audio_name}")
+    print(f"GENERATED CAPTION: {generated_caption}")
+
+    feat, aud_to_feat = get_audio_features(['rickroll.wav'])
+    rick_feat = feat[0]
+    temperature = 0.5
+    generated_caption = gen_caption_temperature(
+        model,
+        rick_feat,
+        word2idx,
+        word2idx["<pad>"],
+        temperature,
+        args.window_size,
+    )
+
     print(f"NAME OF FILE: {random_audio_name}")
     print(f"GENERATED CAPTION: {generated_caption}")
 

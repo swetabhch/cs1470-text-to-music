@@ -83,7 +83,7 @@ def load_data(data_folder):
 
     audio_to_caption_dict = {}
     for index, row in df.iterrows():
-        audio_to_caption_dict[row['audio']] = row['audio']
+        audio_to_caption_dict[row['audio']] = row['caption']
 
     shuffled_audio = list(audio_to_caption_dict.keys())
     random.seed(0)
