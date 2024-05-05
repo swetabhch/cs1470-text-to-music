@@ -5,6 +5,7 @@ import pickle
 import tensorflow as tf
 from typing import Optional
 from types import SimpleNamespace
+import random
 
 
 from model import AudioCaptionModel, accuracy_function, loss_function
@@ -88,6 +89,8 @@ def main(args):
     #    if we're talking about number of captions, we need to do none.
     train_audio_feats = data_dict["train_audio_features"]
     test_audio_feats = data_dict["test_audio_features"]
+    # train_audios = data_dict["train_audios"]
+    # test_audios = data_dict["test_audios"]
     word2idx = data_dict["word2idx"]
 
     # feat_prep = lambda x: np.repeat(np.array(x).reshape(-1, 2048), 5, axis=0)
@@ -120,10 +123,15 @@ def main(args):
         if not (args.task == "both" and args.check_valid):
             test_model(model, test_captions, test_audio_feats, word2idx["<pad>"], args)
 
+    # Get a random audio name
+    # test_audio_keys = test_audios.keys()
+    # random_audio_name = test_audio_keys[random.random(0, len(test_audio_keys))]
+        
     ## Check a single input
-    input_idx = 57
+    input_idx = 59
     test_audio_feat = test_audio_feats[input_idx]
-    temperature = 1
+    # test_audio_feat = test_audios[random_audio_name]
+    temperature = 0.5
     generated_caption = gen_caption_temperature(
         model,
         test_audio_feat,
@@ -132,6 +140,7 @@ def main(args):
         temperature,
         args.window_size,
     )
+    print(f"NAME OF FILE: {random_audio_name}")
     print(f"GENERATED CAPTION: {generated_caption}")
 
 
@@ -183,7 +192,7 @@ def save_model(model, args):
 def load_model(args):
     """Loads model by reference based on arguments. Also returns said model"""
     model = tf.keras.models.load_model(
-        args.chkpt_path,
+        args.chkpt_path,        
         custom_objects=dict(
             TransformerDecoder=TransformerDecoder,
             AudioCaptionModel=AudioCaptionModel,
