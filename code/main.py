@@ -21,57 +21,57 @@ def parse_args(args=None):
     For example:
         parse_args('--type', 'rnn', ...)
     """
-    # parser = argparse.ArgumentParser(
-    #     description="Let's train some neural nets!",
-    #     formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-    # )
-    # parser.add_argument(
-    #     "--type",
-    #     required=True,
-    #     choices=["rnn", "transformer"],
-    #     help="Type of model to train",
-    # )
-    # parser.add_argument(
-    #     "--task", required=True, choices=["train", "test", "both"], help="Task to run"
-    # )
-    # parser.add_argument(
-    #     "--data", required=True, help="File path to the assignment data file."
-    # )
-    # parser.add_argument(
-    #     "--epochs", type=int, default=3, help="Number of epochs used in training."
-    # )
-    # parser.add_argument("--lr", type=float, default=1e-3, help="Model's learning rate")
-    # parser.add_argument(
-    #     "--optimizer",
-    #     type=str,
-    #     default="adam",
-    #     choices=["adam", "rmsprop", "sgd"],
-    #     help="Model's optimizer",
-    # )
-    # parser.add_argument(
-    #     "--batch_size", type=int, default=100, help="Model's batch size."
-    # )
-    # parser.add_argument(
-    #     "--hidden_size",
-    #     type=int,
-    #     default=256,
-    #     help="Hidden size used to instantiate the model.",
-    # )
-    # parser.add_argument(
-    #     "--window_size", type=int, default=20, help="Window size of text entries."
-    # )
-    # parser.add_argument(
-    #     "--chkpt_path", default="", help="where the model checkpoint is"
-    # )
-    # parser.add_argument(
-    #     "--check_valid",
-    #     default=True,
-    #     action="store_true",
-    #     help="if training, also print validation after each epoch",
-    # )
-    # if args is None:
-    #     return parser.parse_args()  ## For calling through command line
-    # return parser.parse_args(args)  ## For calling through notebook.
+    parser = argparse.ArgumentParser(
+        description="Let's train some neural nets!",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser.add_argument(
+        "--type",
+        required=True,
+        choices=["rnn", "transformer"],
+        help="Type of model to train",
+    )
+    parser.add_argument(
+        "--task", required=True, choices=["train", "test", "both"], help="Task to run"
+    )
+    parser.add_argument(
+        "--data", required=True, help="File path to the assignment data file."
+    )
+    parser.add_argument(
+        "--epochs", type=int, default=3, help="Number of epochs used in training."
+    )
+    parser.add_argument("--lr", type=float, default=1e-3, help="Model's learning rate")
+    parser.add_argument(
+        "--optimizer",
+        type=str,
+        default="adam",
+        choices=["adam", "rmsprop", "sgd"],
+        help="Model's optimizer",
+    )
+    parser.add_argument(
+        "--batch_size", type=int, default=100, help="Model's batch size."
+    )
+    parser.add_argument(
+        "--hidden_size",
+        type=int,
+        default=256,
+        help="Hidden size used to instantiate the model.",
+    )
+    parser.add_argument(
+        "--window_size", type=int, default=40, help="Window size of text entries."
+    )
+    parser.add_argument(
+        "--chkpt_path", default="", help="where the model checkpoint is"
+    )
+    parser.add_argument(
+        "--check_valid",
+        default=True,
+        action="store_true",
+        help="if training, also print validation after each epoch",
+    )
+    if args is None:
+        return parser.parse_args()  ## For calling through command line
+    return parser.parse_args(args)  ## For calling through notebook.
     pass
 
 
@@ -119,6 +119,53 @@ def main(args):
             model = load_model(args)
         if not (args.task == "both" and args.check_valid):
             test_model(model, test_captions, test_audio_feats, word2idx["<pad>"], args)
+
+    ## Check a single input
+    input_idx = 57
+    test_audio_feat = test_audio_feats[input_idx]
+    temperature = 1
+    generated_caption = gen_caption_temperature(
+        model,
+        test_audio_feat,
+        word2idx,
+        word2idx["<pad>"],
+        temperature,
+        args.window_size,
+    )
+    print(f"GENERATED CAPTION: {generated_caption}")
+
+
+##############################################################################
+## UTILITY METHODS
+
+
+def gen_caption_temperature(
+    model, audio_embedding, wordToIds, padID, temp, window_length
+):
+    """
+    Function used to generate a caption using an ImageCaptionModel given
+    an image embedding.
+    """
+    idsToWords = {id: word for word, id in wordToIds.items()}
+    print(idsToWords)
+    unk_token = wordToIds["<unk>"]
+    caption_so_far = [wordToIds["<start>"]]
+    while (
+        len(caption_so_far) < window_length and caption_so_far[-1] != wordToIds["<end>"]
+    ):
+        caption_input = np.array(
+            [caption_so_far + ((window_length - len(caption_so_far)) * [padID])]
+        )
+        logits = model(np.expand_dims(audio_embedding, 0), caption_input)
+        logits = logits[0][len(caption_so_far) - 1]
+        probs = tf.nn.softmax(logits / temp).numpy()
+        next_token = unk_token
+        attempts = 0
+        while next_token == unk_token and attempts < 5:
+            next_token = np.random.choice(len(probs), p=probs)
+            attempts += 1
+        caption_so_far.append(next_token)
+    return " ".join([idsToWords[x] for x in caption_so_far][1:-1])
 
 
 ##############################################################################
