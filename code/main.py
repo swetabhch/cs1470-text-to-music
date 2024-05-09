@@ -5,6 +5,8 @@ import pickle
 import tensorflow as tf
 from typing import Optional
 from types import SimpleNamespace
+import random
+from preprocess_data import get_audio_features
 
 
 from model import AudioCaptionModel, accuracy_function, loss_function
@@ -52,7 +54,7 @@ def parse_args(args=None):
         help="Hidden size used to instantiate the model.",
     )
     parser.add_argument(
-        "--window_size", type=int, default=20, help="Window size of text entries."
+        "--window_size", type=int, default=40, help="Window size of text entries."
     )
     parser.add_argument(
         "--chkpt_path", default="", help="where the model checkpoint is"
@@ -81,6 +83,8 @@ def main(args):
     #    if we're talking about number of captions, we need to do none.
     train_audio_feats = data_dict["train_audio_features"]
     test_audio_feats = data_dict["test_audio_features"]
+    train_audios = data_dict["train_audios"]
+    test_audios = data_dict["test_audios"]
     word2idx = data_dict["word2idx"]
 
     # feat_prep = lambda x: np.repeat(np.array(x).reshape(-1, 2048), 5, axis=0)
@@ -112,6 +116,74 @@ def main(args):
             model = load_model(args)
         if not (args.task == "both" and args.check_valid):
             test_model(model, test_captions, test_audio_feats, word2idx["<pad>"], args)
+
+    # Get a random audio name
+    test_audio_keys = test_audios.keys()
+    random_audio_name = test_audio_keys[random.random(0, len(test_audio_keys))]
+
+    ## Check a single input
+    # input_idx = 59
+    # test_audio_feat = test_audio_feats[input_idx]
+    test_audio_feat = test_audios[random_audio_name]
+    temperature = 0.5
+    generated_caption = gen_caption_temperature(
+        model,
+        test_audio_feat,
+        word2idx,
+        word2idx["<pad>"],
+        temperature,
+        args.window_size,
+    )
+    print(f"NAME OF FILE: {random_audio_name}")
+    print(f"GENERATED CAPTION: {generated_caption}")
+
+    feat, aud_to_feat = get_audio_features(["rickroll.wav"])
+    rick_feat = feat[0]
+    temperature = 0.5
+    generated_caption = gen_caption_temperature(
+        model,
+        rick_feat,
+        word2idx,
+        word2idx["<pad>"],
+        temperature,
+        args.window_size,
+    )
+
+    print(f"NAME OF FILE: {random_audio_name}")
+    print(f"GENERATED CAPTION: {generated_caption}")
+
+
+##############################################################################
+## UTILITY METHODS
+
+
+def gen_caption_temperature(
+    model, audio_embedding, wordToIds, padID, temp, window_length
+):
+    """
+    Function used to generate a caption using an ImageCaptionModel given
+    an image embedding.
+    """
+    idsToWords = {id: word for word, id in wordToIds.items()}
+    print(idsToWords)
+    unk_token = wordToIds["<unk>"]
+    caption_so_far = [wordToIds["<start>"]]
+    while (
+        len(caption_so_far) < window_length and caption_so_far[-1] != wordToIds["<end>"]
+    ):
+        caption_input = np.array(
+            [caption_so_far + ((window_length - len(caption_so_far)) * [padID])]
+        )
+        logits = model(np.expand_dims(audio_embedding, 0), caption_input)
+        logits = logits[0][len(caption_so_far) - 1]
+        probs = tf.nn.softmax(logits / temp).numpy()
+        next_token = unk_token
+        attempts = 0
+        while next_token == unk_token and attempts < 5:
+            next_token = np.random.choice(len(probs), p=probs)
+            attempts += 1
+        caption_so_far.append(next_token)
+    return " ".join([idsToWords[x] for x in caption_so_far][1:-1])
 
 
 ##############################################################################

@@ -28,11 +28,12 @@ def preprocess_captions(captions, window_size):
         # Replace the old caption in the captions list with this new cleaned caption
         captions[i] = caption_new
 
-def get_audio_features(audio_names, data_folder):
+def get_audio_features(audio_names):
     '''
     Method used to extract the features from the images in the dataset using ResNet50
     '''
     audio_features = []
+    aud_to_feat = {}
     #resnet = tf.keras.applications.ResNet50(False)  ## Produces Bx7x7x2048
     #gap = tf.keras.layers.GlobalAveragePooling2D()  ## Produces Bx2048
     pbar = tqdm(audio_names)
@@ -60,9 +61,10 @@ def get_audio_features(audio_names, data_folder):
         normalized_features = (combined_features - mean) / (std + 1e-8) 
         padded = tf.keras.preprocessing.sequence.pad_sequences(normalized_features, maxlen = 1873, dtype='float32', padding='post', truncating='post')
         audio_features += [padded]
+        aud_to_feat[audio_name] = padded
         #print(padded.shape)
     print()
-    return audio_features
+    return audio_features, aud_to_feat
 
 
 def load_data(data_folder):
@@ -81,7 +83,7 @@ def load_data(data_folder):
 
     audio_to_caption_dict = {}
     for index, row in df.iterrows():
-        audio_to_caption_dict[row['audio']] = row['audio']
+        audio_to_caption_dict[row['audio']] = row['caption']
 
     shuffled_audio = list(audio_to_caption_dict.keys())
     random.seed(0)
@@ -144,9 +146,9 @@ def load_data(data_folder):
             caption[index] = word2idx[word] 
     
     print("Getting training embeddings")
-    train_audio_features = get_audio_features(train_audio_names, data_folder)
+    train_audio_features, train_aud_name_to_feat = get_audio_features(train_audio_names)
     print("Getting testing embeddings")
-    test_audio_features = get_audio_features(test_audio_names, data_folder)
+    test_audio_features, test_aud_name_to_feat = get_audio_features(test_audio_names)
     #print(test_audio_features[0].shape)
 
 
@@ -155,6 +157,8 @@ def load_data(data_folder):
         test_captions           = np.array(test_captions),
         train_audio_features    = np.array(train_audio_features),
         test_audio_features     = np.array(test_audio_features),
+        train_audios            = train_aud_name_to_feat,
+        test_audios             = test_aud_name_to_feat,
         word2idx                = word2idx,
         idx2word                = {v:k for k,v in word2idx.items()},
     )
