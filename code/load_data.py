@@ -3,21 +3,21 @@ import os
 import pandas as pd
 from pathlib import Path
 
-data_dir = "../data/music" # Where to save the data
+data_dir = "../data/music"  # Where to save the data
 
 # Create directory where data will be saved
 data_dir = Path(data_dir)
 data_dir.mkdir(exist_ok=True, parents=True)
 
 
-
+# Heavy inspiration from: https://www.kaggle.com/code/osanseviero/musiccaps-explorer
 def download_clip(
     video_identifier,
     output_filename,
     start_time,
     end_time,
     num_attempts=5,
-    url_base='https://www.youtube.com/watch?v='
+    url_base="https://www.youtube.com/watch?v=",
 ):
     status = False
     command = f"""
@@ -27,8 +27,9 @@ def download_clip(
     attempts = 0
     while True:
         try:
-            output = subprocess.check_output(command, shell=True,
-                                                stderr=subprocess.STDOUT)
+            output = subprocess.check_output(
+                command, shell=True, stderr=subprocess.STDOUT
+            )
         except subprocess.CalledProcessError as err:
             attempts += 1
             if attempts == num_attempts:
@@ -39,7 +40,8 @@ def download_clip(
     # Check if the video was successfully saved.
     status = os.path.exists(output_filename)
     print(status)
-    return status, 'Downloaded'
+    return status, "Downloaded"
+
 
 def process(example):
     outfile_path = str(data_dir / f"{example['ytid']}.wav")
@@ -47,20 +49,18 @@ def process(example):
     if not os.path.exists(outfile_path):
         status = False
         status, log = download_clip(
-            example['ytid'],
+            example["ytid"],
             outfile_path,
-            example['start_s'],
-            example['end_s'],
+            example["start_s"],
+            example["end_s"],
         )
 
-    example['audio'] = outfile_path
-    example['download_status'] = status
+    example["audio"] = outfile_path
+    example["download_status"] = status
     return example
 
-init_df = pd.read_csv('../data/musiccaps-public.csv')
+
+init_df = pd.read_csv("../data/musiccaps-public.csv")
 print(init_df.columns)
 loaded_df = init_df.apply(process, axis=1)
 loaded_df.to_csv("../data/musiccaps-files.csv")
-
-
-

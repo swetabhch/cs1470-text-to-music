@@ -26,20 +26,10 @@ class AudioCaptionModel(tf.keras.Model):
 
         :param model: the initialized model to use for forward and backward pass
         :param train_captions: train data captions (all data for training)
-        :param train_images: train image features (all data for training)
+        :param train_images: train audio features (all data for training)
         :param padding_index: the padding index, the id of *PAD* token. This integer is used when masking padding labels.
         :return: None
         """
-
-        ## TODO: Implement similar to test below.
-
-        ## NOTE: shuffle the training examples (perhaps using tf.random.shuffle on a
-        ##       range of indices spanning # of training entries, then tf.gather)
-        ##       to make training smoother over multiple epochs.
-
-        ## NOTE: make sure you are calculating gradients and optimizing as appropriate
-        ##       (similar to batch_step from HW2)
-
         total_captions = len(train_captions)
         num_batches = int(total_captions / batch_size)
         total_loss = total_seen = total_correct = 0
@@ -86,13 +76,11 @@ class AudioCaptionModel(tf.keras.Model):
 
     def test(self, test_captions, test_audio_features, padding_index, batch_size=30):
         """
-        DO NOT CHANGE; Use as inspiration
-
         Runs through one epoch - all testing examples.
 
         :param model: the initilized model to use for forward and backward pass
         :param test_captions: test caption data (all data for testing) of shape (num captions,20)
-        :param test_image_features: test image feature data (all data for testing) of shape (num captions,1000)
+        :param test_audio_features: test audio feature data (all data for testing) of shape (num captions,1000)
         :param padding_index: the padding index, the id of *PAD* token. This integer is used to mask padding labels.
         :returns: perplexity of the test set, per symbol accuracy on test set
         """
@@ -102,13 +90,6 @@ class AudioCaptionModel(tf.keras.Model):
         for index, end in enumerate(
             range(batch_size, len(test_captions) + 1, batch_size)
         ):
-
-            # NOTE:
-            # - The captions passed to the decoder should have the last token in the window removed:
-            # 	 [<START> student working on homework <STOP>] --> [<START> student working on homework]
-            #
-            # - When computing loss, the decoder labels should have the first word removed:
-            # 	 [<START> student working on homework <STOP>] --> [student working on homework <STOP>]
 
             ## Get the current batch of data, making sure to try to predict the next word
             start = end - batch_size
@@ -155,8 +136,6 @@ class AudioCaptionModel(tf.keras.Model):
 
 def accuracy_function(prbs, labels, mask):
     """
-    DO NOT CHANGE
-
     Computes the batch accuracy
 
     :param prbs:  float tensor, word prediction probabilities [BATCH_SIZE x WINDOW_SIZE x VOCAB_SIZE]
@@ -173,10 +152,8 @@ def accuracy_function(prbs, labels, mask):
 
 def loss_function(prbs, labels, mask):
     """
-    DO NOT CHANGE
-
     Calculates the model cross-entropy loss after one forward pass
-    Please use reduce sum here instead of reduce mean to make things easier in calculating per symbol accuracy.
+    We use reduce sum here instead of reduce mean to make things easier in calculating per symbol accuracy.
 
     :param prbs:  float tensor, word prediction probabilities [batch_size x window_size x english_vocab_size]
     :param labels:  integer tensor, word prediction labels [batch_size x window_size]

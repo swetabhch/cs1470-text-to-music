@@ -3,16 +3,12 @@ import argparse
 import numpy as np
 import pickle
 import tensorflow as tf
-from typing import Optional
-from types import SimpleNamespace
 import random
 from preprocess_data import get_audio_features
 
 
 from model import AudioCaptionModel, accuracy_function, loss_function
 from decoder import TransformerDecoder
-
-# from positional_encoding import PositionalEncoding
 
 
 def parse_args(args=None):
@@ -30,9 +26,7 @@ def parse_args(args=None):
     parser.add_argument(
         "--task", required=True, choices=["train", "test", "both"], help="Task to run"
     )
-    parser.add_argument(
-        "--data", required=True, help="File path to the assignment data file."
-    )
+    parser.add_argument("--data", required=True, help="File path to the data file.")
     parser.add_argument(
         "--epochs", type=int, default=3, help="Number of epochs used in training."
     )
@@ -79,19 +73,9 @@ def main(args):
 
     train_captions = data_dict["train_captions"]
     test_captions = data_dict["test_captions"]
-    # TODO: figure out what kind of feat prep we need to do if any
-    #    if we're talking about number of captions, we need to do none.
     train_audio_feats = data_dict["train_audio_features"]
     test_audio_feats = data_dict["test_audio_features"]
-    train_audios = data_dict["train_audios"]
-    test_audios = data_dict["test_audios"]
     word2idx = data_dict["word2idx"]
-
-    # feat_prep = lambda x: np.repeat(np.array(x).reshape(-1, 2048), 5, axis=0)
-    # # img_prep  = lambda x: np.repeat(x, 5, axis=0)
-    # # train_images    = img_prep(data_dict['train_images'])
-    # # test_images     = img_prep(data_dict['test_images'])
-    # # idx2word        = data_dict['idx2word']
 
     ## Training task
     if args.task in ("train", "both"):
@@ -117,40 +101,24 @@ def main(args):
         if not (args.task == "both" and args.check_valid):
             test_model(model, test_captions, test_audio_feats, word2idx["<pad>"], args)
 
-    # Get a random audio name
-    test_audio_keys = test_audios.keys()
-    random_audio_name = test_audio_keys[random.random(0, len(test_audio_keys))]
-
-    ## Check a single input
+    ## Check a single input -- uncomment to try this out!
     # input_idx = 59
+    # Get a random audio name
+    # test_audio_keys = test_audios.keys()
+    # random_audio_name = test_audio_keys[random.random(0, len(test_audio_keys))]
     # test_audio_feat = test_audio_feats[input_idx]
-    test_audio_feat = test_audios[random_audio_name]
-    temperature = 0.5
-    generated_caption = gen_caption_temperature(
-        model,
-        test_audio_feat,
-        word2idx,
-        word2idx["<pad>"],
-        temperature,
-        args.window_size,
-    )
-    print(f"NAME OF FILE: {random_audio_name}")
-    print(f"GENERATED CAPTION: {generated_caption}")
-
-    feat, aud_to_feat = get_audio_features(["rickroll.wav"])
-    rick_feat = feat[0]
-    temperature = 0.5
-    generated_caption = gen_caption_temperature(
-        model,
-        rick_feat,
-        word2idx,
-        word2idx["<pad>"],
-        temperature,
-        args.window_size,
-    )
-
-    print(f"NAME OF FILE: {random_audio_name}")
-    print(f"GENERATED CAPTION: {generated_caption}")
+    # test_audio_feat = test_audios[random_audio_name]
+    # temperature = 0.5
+    # generated_caption = gen_caption_temperature(
+    #     model,
+    #     test_audio_feat,
+    #     word2idx,
+    #     word2idx["<pad>"],
+    #     temperature,
+    #     args.window_size,
+    # )
+    # print(f"NAME OF FILE: {random_audio_name}")
+    # print(f"GENERATED CAPTION: {generated_caption}")
 
 
 ##############################################################################
@@ -158,21 +126,21 @@ def main(args):
 
 
 def gen_caption_temperature(
-    model, audio_embedding, wordToIds, padID, temp, window_length
+    model, audio_embedding, word_to_ids, pad_id, temp, window_length
 ):
     """
-    Function used to generate a caption using an ImageCaptionModel given
-    an image embedding.
+    Function used to generate a caption using an AudioCaptionModel given
+    an audio embedding.
     """
-    idsToWords = {id: word for word, id in wordToIds.items()}
-    print(idsToWords)
-    unk_token = wordToIds["<unk>"]
-    caption_so_far = [wordToIds["<start>"]]
+    ids_to_words = {id: word for word, id in word_to_ids.items()}
+    unk_token = word_to_ids["<unk>"]
+    caption_so_far = [word_to_ids["<start>"]]
     while (
-        len(caption_so_far) < window_length and caption_so_far[-1] != wordToIds["<end>"]
+        len(caption_so_far) < window_length
+        and caption_so_far[-1] != word_to_ids["<end>"]
     ):
         caption_input = np.array(
-            [caption_so_far + ((window_length - len(caption_so_far)) * [padID])]
+            [caption_so_far + ((window_length - len(caption_so_far)) * [pad_id])]
         )
         logits = model(np.expand_dims(audio_embedding, 0), caption_input)
         logits = logits[0][len(caption_so_far) - 1]
@@ -183,7 +151,7 @@ def gen_caption_temperature(
             next_token = np.random.choice(len(probs), p=probs)
             attempts += 1
         caption_so_far.append(next_token)
-    return " ".join([idsToWords[x] for x in caption_so_far][1:-1])
+    return " ".join([ids_to_words[x] for x in caption_so_far][1:-1])
 
 
 ##############################################################################
@@ -191,7 +159,7 @@ def gen_caption_temperature(
 
 
 def save_model(model, args):
-    """Loads model based on arguments"""
+    """Saves model based on arguments"""
     os.makedirs(f"{args.chkpt_path}", exist_ok=True)
 
     tf.keras.models.save_model(model, args.chkpt_path)

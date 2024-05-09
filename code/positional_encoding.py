@@ -4,7 +4,6 @@ import numpy as np
 
 def positional_encoding(length, depth):
     ## REFERENCE: https://www.tensorflow.org/text/tutorials/transformer#the_embedding_and_positional_encoding_layer
-    ## TODO: Can remove signature
     depth = depth / 2
     ## Generate a range of positions and depths
     positions = np.arange(length)[:, np.newaxis]  # (seq, 1)
@@ -22,17 +21,13 @@ class PositionalEncoding(tf.keras.layers.Layer):
         super().__init__()
         self.embed_size = embed_size
 
-        ## TODO: Implement Component
-
         ## Embed labels into an optimizable embedding space
         self.embedding = tf.keras.layers.Embedding(vocab_size, embed_size)
 
         ## Implement sinosoidal positional encoding: offset by varying sinosoidal frequencies.
-        ## HINT: May want to use the function above...
         self.pos_encoding = positional_encoding(length=window_size, depth=embed_size)
 
     def call(self, x):
-        ## TODO: Get embeddings and and scale them by sqrt of embedding size, and add positional encoding.
         length = tf.shape(x)[1]
         embedded_input = self.embedding(x)
         scaled_input = embedded_input * tf.math.sqrt(
