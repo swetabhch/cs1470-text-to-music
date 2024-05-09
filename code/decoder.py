@@ -22,7 +22,7 @@ class TransformerDecoder(tf.keras.Model):
         self.encoding = PositionalEncoding(vocab_size, hidden_size, window_size)
 
         # Define transformer decoder layer:
-        self.decoder = keras_nlp.layers.TransformerDecoder(hidden_size, 1)
+        self.decoder = keras_nlp.layers.TransformerDecoder(hidden_size, 5)
 
         # Define classification layer(s) (LOGIT OUTPUT)
         self.classifier = tf.keras.layers.Dense(self.vocab_size)
